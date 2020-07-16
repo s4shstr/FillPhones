@@ -79,6 +79,144 @@ conf_staff = conf_staff.merge(conf_staff_names, left_index=True, right_index=Tru
 conf_staff = conf_staff.merge(conf_staff_info, left_index=True, right_index=True)
 conf_staff.to_excel(temppath + '\FillPhones\\' + company_name + '_conf_staff.xlsx', index=False, header=["Логин", "Фамилия", "Имя", "Внутренний номер", "E-mail", "Моб. номер"])
 
+# Confluence staff tables preparing, collisions searching
+digit_count = 0
+conf_staff = pd.read_excel(temppath + '\FillPhones\\' + company_name + '_conf_staff.xlsx', encoding = 'utf-8')
+conf_staff["Коллизии внутреннего номера"] = ''
+conf_staff["Коллизии мобильного номера"] = ''
+phone_extension_list = conf_staff['Внутренний номер'].tolist()
+phone_mobile_list = conf_staff['Моб. номер'].tolist()
+for index, row in conf_staff.iterrows():
+    phone_extension_start = ''
+    phone_extension = ''
+    phone_extension_mobile = ''
+    phone_extension_raw = ''
+    phone_mobile_multiple_extension = ''
+    phone_mobile_start = ''
+    phone_mobile = ''
+    phone_mobile_extension = ''
+    phone_mobile_multiple = ''
+    phone_mobile_probably = ''
+    phone_mobile_raw = ''
+    if str(phone_extension_list[index]) != 'nan':
+        phone_extension_raw = int(phone_extension_list[index])
+        phone_extension_raw = str(phone_extension_raw)
+    if str(phone_mobile_list[index]) != 'nan':
+        phone_mobile_raw = str(phone_mobile_list[index])
+    if phone_extension_raw != '':
+        flag_start = False
+        start_number_digit = 0
+        start_number_digit_flag = False
+        phone_number_creating = ''
+        phone_number_creating_cache = ''
+        start_digit_count = 0
+        for i in range(len(phone_extension_raw)):
+            if phone_extension_raw[i] == '0' or phone_extension_raw[i].isdigit() != True:
+                continue
+                start_digit_count = start_digit_count + 1
+            else:
+                phone_extension_start = phone_extension_raw[i:]
+                break
+        if phone_extension_start != '':
+            for i in range(len(phone_extension_start)):
+                if phone_extension_start[i].isdigit() == True:
+                    phone_extension = phone_extension + phone_extension_start[i]
+            if len(phone_extension) >= 2 and len(phone_extension) < 6:
+                conf_staff.iloc[index, 3] = phone_extension
+            elif len(phone_extension) >= 11:
+                for i in range(len(phone_extension)):
+                    if phone_extension[i] == '9' and i + 10 <= len(phone_extension):
+                        start_number_digit = i
+                        for k in range(i,i+10):
+                            phone_number_creating = phone_number_creating + phone_extension[k]
+                            if (phone_extension[k] == '9' and k != start_number_digit) or (k == 10 and start_number_digit_flag == False):
+                                start_number_digit = k
+                                start_number_digit_flag = True
+                        i = start_number_digit
+                        if phone_number_creating != phone_number_creating_cache and phone_number_creating != '':
+                            phone_number_creating_cache = phone_number_creating
+                            phone_mobile_multiple_extension = phone_mobile_multiple_extension + '\n' + '7' + phone_number_creating
+                        phone_number_creating = ''
+                if phone_extension[:2] != '79' and phone_extension[:2] != '89':
+                    conf_staff.iloc[index, 6] = 'Неверный внутренний номер. \nВероятно присутствует несколько мобильных номеров телефонов: ' + '\nИзначальный номер: ' + phone_extension_raw + ' \nОбработанный номер: ' + phone_mobile_multiple_extension
+            elif len(phone_extension) == 11 and phone_extension[0] == '7':
+                conf_staff.iloc[index, 6] = 'Неверный внутренний номер. \nВероятно +' + phone_extension + ' номер мобильного телефона.'
+                phone_extension_mobile = phone_extension_mobile + phone_extension + '\n'
+            elif len(phone_extension) == 10 and int(phone_extension[0]) == 9:
+                conf_staff.iloc[index, 6] = 'Неверный внутренний номер. \nВероятно это номер мобильного телефона. \nК номеру были добавлены +7, проверьте корректность номера \n+7' + phone_extension
+                phone_extension_mobile = phone_extension_mobile + '7' + phone_extension
+            elif len(phone_extension) > 0 and phone_extension_raw.isdigit() == True:
+                conf_staff.iloc[index, 6] = 'Не удалось определить номер: ' + phone_extension_raw
+            elif len(phone_extension_raw) > 0:
+                conf_staff.iloc[index, 6] = 'Вероятно \"' + phone_extension_raw + '\" не является номером телефона.'
+        elif len(phone_extension_raw) > 0:
+            conf_staff.iloc[index, 6] = 'Вероятно \"' + phone_extension_raw + '\" не является номером телефона.'
+    if phone_mobile_raw != '':
+        flag_start = False
+        start_number_digit = 0
+        start_number_digit_flag = False
+        phone_number_creating = ''
+        phone_number_creating_cache = ''
+        for i in range(len(phone_mobile_raw)):
+            if phone_mobile_raw[i] == '0' or phone_mobile_raw[i].isdigit() != True:
+                continue
+            else:
+                phone_mobile_start = phone_mobile_raw[i:]
+                break
+        if phone_mobile_start != '':
+            for i in range(len(phone_mobile_start)):
+                if phone_mobile_start[i].isdigit() == True:
+                    phone_mobile = phone_mobile + phone_mobile_start[i]
+            if len(phone_mobile) >= 11:
+                for i in range(len(phone_mobile)):
+                    if phone_mobile[i] == '9' and i + 10 <= len(phone_mobile):
+                        start_number_digit = i
+                        for k in range(i,i+10):
+                            phone_number_creating = phone_number_creating + phone_mobile[k]
+                            if (phone_mobile[k] == '9' and k != start_number_digit) or (k == 10 and start_number_digit_flag == False):
+                                start_number_digit = k
+                                start_number_digit_flag = True
+                        i = start_number_digit
+                        if phone_number_creating != phone_number_creating_cache and phone_number_creating != '':
+                            phone_number_creating_cache = phone_number_creating
+                            phone_mobile_multiple = phone_mobile_multiple + '\n' + '7' + phone_number_creating
+                            phone_number_creating = ''
+                if phone_mobile[:2] != '79' and phone_mobile[:2] != '89':
+                    conf_staff.iloc[index, 7] = 'Вероятно присутствует несколько мобильных номеров телефонов: ' + '\nИзначальный номер: ' + phone_mobile_raw + ' \nОбработанный номер: ' + phone_mobile_multiple
+                conf_staff.iloc[index, 5] = phone_mobile_multiple[1:]
+            elif len(phone_mobile) == 11 and (phone_mobile[:2] == '79' or phone_mobile[:2] == '89'):
+                conf_staff.iloc[index, 5] = phone_mobile
+            elif len(phone_mobile) >= 2 and len(phone_mobile) < 6:
+                conf_staff.iloc[index, 7] = 'Неверный мобильный номер телефона.\nВероятно номер ' + phone_mobile + ' является добавочным'
+                phone_mobile_extension = phone_mobile_extension + phone_mobile + '\n'
+            elif len(phone_mobile) == 10 and int(phone_mobile[0]) == 9:
+                conf_staff.iloc[index, 7] = 'К номеру были добавлены +7, проверьте корректность номера. \n+7' + phone_mobile
+                conf_staff.iloc[index, 5] = '7' + str(phone_mobile)
+            elif len(phone_mobile) > 0 and phone_mobile_raw.isdigit() == True:
+                conf_staff.iloc[index, 7] = 'Не удалось определить номер: ' + phone_mobile_raw
+            elif (len(phone_mobile) > 9 and (phone_mobile[:2] == '79' or phone_mobile[:2] == '89')) or (len(phone_mobile) > 7 and len(phone_mobile) < 10 and phone_mobile[0] == '9'):
+                conf_staff.iloc[index, 7] = 'Неполный номер \n' + phone_mobile_raw
+            elif len(phone_mobile_raw) > 0:
+                conf_staff.iloc[index, 7] = 'Вероятно \"' + phone_mobile_raw + '\" не является номером телефона.'
+        elif len(phone_mobile_raw) > 0:
+            conf_staff.iloc[index, 7] = 'Вероятно \"' + phone_mobile_raw + '\" не является номером телефона.'
+    if phone_extension_mobile != '':
+        if  str(conf_staff.iloc[index, 5]) == 'nan':
+            conf_staff.iloc[index, 5] = phone_extension_mobile
+        else:
+            conf_staff.iloc[index, 5] = str(conf_staff.iloc[index, 5]) + '\n' + phone_extension_mobile
+    if phone_mobile_extension != '':
+        if str(conf_staff.iloc[index, 3]) == 'nan':
+            conf_staff.iloc[index, 3] = phone_mobile_extension
+        else:
+            conf_staff.iloc[index, 3] = str(conf_staff.iloc[index, 3]) + '\n' + phone_mobile_extension
+    if phone_mobile_multiple_extension != '':
+        if str(conf_staff.iloc[index, 5]) == 'nan':
+            conf_staff.iloc[index, 5] = phone_mobile_multiple_extension
+        else:
+            conf_staff.iloc[index, 5] = str(conf_staff.iloc[index, 5]) + '\n' + phone_mobile_multiple_extension
+conf_staff.to_excel(temppath + '\FillPhones\\' + company_name + '_conf_staff_collisions.xlsx', index=False, header=["Логин", "Фамилия", "Имя", "Внутренний номер", "E-mail", "Моб. номер", "Коллизии внутреннего номера", "Коллизии мобильного номера"])
+
 # OTRS staff info parsing and tables preparing (preview info)
 browser.get('https://hd.itfb.ru/index.pl?Action=AdminCustomerUser;Nav=' + company_name)
 s_username = browser.find_element_by_id('User')
@@ -113,14 +251,14 @@ otrs_staff = otrs_staff.merge(otrs_staff_email, left_index=True, right_index=Tru
 otrs_staff['Моб. номер'] = ""
 otrs_staff.to_excel(temppath + '\FillPhones\\' + company_name + '_otrs_staff.xlsx', index=False, header=["Логин", "Фамилия", "Имя", "Внутренний номер", "E-mail", "Моб. номер"])
 
-# OTRS staff info parsing and tables preparing (extended info)
+# OTRS staff info parsing, tables preparing, collisions searching (extended info)
 digit_count = 0
 otrs_staff = pd.read_excel(temppath + '\FillPhones\\' + company_name + '_otrs_staff.xlsx', encoding = 'utf-8')
 otrs_staff["Коллизии внутреннего номера"] = ''
 otrs_staff["Коллизии мобильного номера"] = ''
 for index, row in otrs_staff.iterrows():
-    if index == 12:
-        break
+    if index == 12: #bugcheck
+        break       #bugcheck
     otrs_login = row['Логин'].split('@')[0]
     print(otrs_login + ' (' + str(index + 1) + ' of ' + str(len(otrs_staff)) + ')')
     browser.get('https://hd.itfb.ru/index.pl?Action=AdminCustomerUser;Subaction=Change;ID='+ otrs_login + '%40' + company_name + ';Search=' + company_name + ';Nav=Agent')
@@ -155,7 +293,7 @@ for index, row in otrs_staff.iterrows():
                     phone_extension = phone_extension + phone_extension_start[i]
             if len(phone_extension) >= 2 and len(phone_extension) < 6:
                 otrs_staff.iloc[index, 3] = phone_extension
-            elif len(phone_extension) > 11:
+            elif len(phone_extension) >= 11:
                 for i in range(len(phone_extension)):
                     if phone_extension[i] == '9' and i + 10 <= len(phone_extension):
                         start_number_digit = i
@@ -169,7 +307,8 @@ for index, row in otrs_staff.iterrows():
                             phone_number_creating_cache = phone_number_creating
                             phone_mobile_multiple_extension = phone_mobile_multiple_extension + '\n' + '7' + phone_number_creating
                         phone_number_creating = ''
-                otrs_staff.iloc[index, 6] = 'Неверный внутренний номер. \nВероятно присутствует несколько мобильных номеров телефонов: ' + '\nИзначальный номер: ' + phone_extension_raw + ' \nОбработанный номер: ' + phone_mobile_multiple_extension
+                if phone_extension[:2] != '79' and phone_extension[:2] != '89':
+                    otrs_staff.iloc[index, 6] = 'Неверный внутренний номер. \nВероятно присутствует несколько мобильных номеров телефонов: ' + '\nИзначальный номер: ' + phone_extension_raw + ' \nОбработанный номер: ' + phone_mobile_multiple_extension
             elif len(phone_extension) == 11 and phone_extension[0] == '7':
                 otrs_staff.iloc[index, 6] = 'Неверный внутренний номер. \nВероятно +' + phone_extension + ' номер мобильного телефона.'
                 phone_extension_mobile = phone_extension_mobile + phone_extension + '\n'
@@ -198,7 +337,7 @@ for index, row in otrs_staff.iterrows():
             for i in range(len(phone_mobile_start)):
                 if phone_mobile_start[i].isdigit() == True:
                     phone_mobile = phone_mobile + phone_mobile_start[i]
-            if len(phone_mobile) > 11:
+            if len(phone_mobile) >= 11:
                 for i in range(len(phone_mobile)):
                     if phone_mobile[i] == '9' and i + 10 <= len(phone_mobile):
                         start_number_digit = i
@@ -212,7 +351,8 @@ for index, row in otrs_staff.iterrows():
                             phone_number_creating_cache = phone_number_creating
                             phone_mobile_multiple = phone_mobile_multiple + '\n' + '7' + phone_number_creating
                             phone_number_creating = ''
-                otrs_staff.iloc[index, 7] = 'Вероятно присутствует несколько мобильных номеров телефонов: ' + '\nИзначальный номер: ' + phone_mobile_raw + ' \nОбработанный номер: ' + phone_mobile_multiple
+                if phone_mobile[:2] != '79' and phone_mobile[:2] != '89':
+                    otrs_staff.iloc[index, 7] = 'Вероятно присутствует несколько мобильных номеров телефонов: ' + '\nИзначальный номер: ' + phone_mobile_raw + ' \nОбработанный номер: ' + phone_mobile_multiple
                 otrs_staff.iloc[index, 5] = phone_mobile_multiple[1:]
             elif len(phone_mobile) == 11 and (phone_mobile[:2] == '79' or phone_mobile[:2] == '89'):
                 otrs_staff.iloc[index, 5] = phone_mobile
@@ -224,7 +364,7 @@ for index, row in otrs_staff.iterrows():
                 otrs_staff.iloc[index, 5] = '7' + str(phone_mobile)
             elif len(phone_mobile) > 0 and phone_mobile_raw.isdigit() == True:
                 otrs_staff.iloc[index, 7] = 'Не удалось определить номер: ' + phone_mobile_raw
-            elif (len(phone_mobile) > 9 and (phone_mobile[:2] == '79' or phone_mobile[:2] == '89')) or (len(phone_mobile) > 8 and phone_mobile[0] == '9'):
+            elif (len(phone_mobile) > 9 and (phone_mobile[:2] == '79' or phone_mobile[:2] == '89')) or (len(phone_mobile) > 7 and len(phone_mobile) < 10 and phone_mobile[0] == '9'):
                 otrs_staff.iloc[index, 7] = 'Неполный номер \n' + phone_mobile_raw
             elif len(phone_mobile_raw) > 0:
                 otrs_staff.iloc[index, 7] = 'Вероятно \"' + phone_mobile_raw + '\" не является номером телефона.'
@@ -245,7 +385,7 @@ for index, row in otrs_staff.iterrows():
             otrs_staff.iloc[index, 5] = phone_mobile_multiple_extension
         else:
             otrs_staff.iloc[index, 5] = str(otrs_staff.iloc[index, 5]) + '\n' + phone_mobile_multiple_extension
-otrs_staff.to_excel(temppath + '\FillPhones\\' + company_name + '_otrs_staff_test.xlsx', index=False, header=["Логин", "Фамилия", "Имя", "Внутренний номер", "E-mail", "Моб. номер", "Коллизии внутреннего номера", "Коллизии мобильного номера"])
+otrs_staff.to_excel(temppath + '\FillPhones\\' + company_name + '_otrs_staff_collisions.xlsx', index=False, header=["Логин", "Фамилия", "Имя", "Внутренний номер", "E-mail", "Моб. номер", "Коллизии внутреннего номера", "Коллизии мобильного номера"])
 
 
 # Confluence and OTRS tables merging
